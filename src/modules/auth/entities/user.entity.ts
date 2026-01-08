@@ -4,58 +4,58 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  DeleteDateColumn,
 } from 'typeorm';
-
-export enum UserRole {
-  CUSTOMER = 'customer',
-  ADMIN = 'admin',
-}
+import { UserRole } from '../interfaces/auth.interfaces';
 
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  public id: string;
 
   @Column({ unique: true })
-  email: string;
+  public email: string;
 
   @Column()
-  firstName: string;
+  public firstName: string;
 
   @Column()
-  lastName: string;
+  public lastName: string;
 
   @Column({ nullable: true })
-  phone?: string;
+  public phone?: string;
 
   @Column({ nullable: true })
-  avatar?: string;
+  public avatar?: string;
 
   @Column({
     type: 'enum',
     enum: UserRole,
     default: UserRole.CUSTOMER,
   })
-  role: UserRole;
+  public role: UserRole;
 
   @Column({ default: false })
-  emailVerified: boolean;
+  public emailVerified: boolean;
 
   @Column()
-  password: string;
+  public password: string;
 
   @Column({ nullable: true })
-  emailVerificationToken?: string;
+  public emailVerificationToken?: string;
 
   @Column({ nullable: true })
-  passwordResetToken?: string;
+  public passwordResetToken?: string;
 
   @Column({ nullable: true })
-  passwordResetExpires?: Date;
+  public passwordResetExpires?: Date;
 
   @CreateDateColumn()
-  createdAt: Date;
+  public createdAt: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  public updatedAt: Date;
+
+  @DeleteDateColumn()
+  public deletedAt?: Date;
 }

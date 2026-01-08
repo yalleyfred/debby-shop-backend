@@ -3,9 +3,10 @@ import {
   ConflictException,
   UnauthorizedException,
   BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan } from 'typeorm';
+import { Repository, MoreThan, IsNull } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { plainToInstance } from 'class-transformer';
 import { randomBytes } from 'crypto';
@@ -23,6 +24,7 @@ import {
   AuthResponse,
   UserResponse,
   MessageResponse,
+  RefreshTokenResponse,
 } from '../dto/auth-responses.dto';
 
 @Injectable()
@@ -37,9 +39,15 @@ export class AuthService {
   public async register(registerData: RegisterRequest): Promise<AuthResponse> {
     const existingUser = await this.userRepository.findOne({
       where: { email: registerData.email },
+      withDeleted: true, // Check including soft-deleted users to prevent duplicate emails
     });
 
     if (existingUser) {
+      if (existingUser.deletedAt) {
+        throw new ConflictException(
+          'User with this email was previously deleted. Please contact support for account recovery.',
+        );
+      }
       throw new ConflictException('User with this email already exists');
     }
 
@@ -70,13 +78,14 @@ export class AuthService {
       user: this.mapToUserResponse(savedUser),
       accessToken,
       refreshToken,
+      expiresIn: this.parseDurationToSeconds(JWT_CONFIG.ACCESS_TOKEN_EXPIRES_IN),
     };
   }
 
   public async login(loginData: LoginRequest): Promise<AuthResponse> {
-    // Find user by email
+    // Find user by email (excluding soft-deleted users)
     const user = await this.userRepository.findOne({
-      where: { email: loginData.email },
+      where: { email: loginData.email, deletedAt: IsNull() },
     });
 
     if (!user) {
@@ -103,16 +112,19 @@ export class AuthService {
       user: this.mapToUserResponse(user),
       accessToken,
       refreshToken,
+      expiresIn: this.parseDurationToSeconds(JWT_CONFIG.ACCESS_TOKEN_EXPIRES_IN),
     };
   }
 
   public async validateUser(userId: string): Promise<User | null> {
-    return this.userRepository.findOne({ where: { id: userId } });
+    return this.userRepository.findOne({ 
+      where: { id: userId, deletedAt: IsNull() } 
+    });
   }
 
   public async verifyEmail(token: string): Promise<MessageResponse> {
     const user = await this.userRepository.findOne({
-      where: { emailVerificationToken: token },
+      where: { emailVerificationToken: token, deletedAt: IsNull() },
     });
 
     if (!user) {
@@ -130,7 +142,7 @@ export class AuthService {
     forgotPasswordData: ForgotPasswordRequest,
   ): Promise<MessageResponse> {
     const user = await this.userRepository.findOne({
-      where: { email: forgotPasswordData.email },
+      where: { email: forgotPasswordData.email, deletedAt: IsNull() },
     });
 
     if (!user) {
@@ -158,6 +170,7 @@ export class AuthService {
       where: {
         passwordResetToken: resetPasswordData.token,
         passwordResetExpires: MoreThan(new Date()),
+        deletedAt: IsNull(),
       },
     });
 
@@ -177,8 +190,10 @@ export class AuthService {
     return { message: 'Password reset successfully' };
   }
 
-  public async refreshToken(userId: string): Promise<{ accessToken: string }> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
+  public async refreshToken(userId: string): Promise<RefreshTokenResponse> {
+    const user = await this.userRepository.findOne({ 
+      where: { id: userId, deletedAt: IsNull() },
+    });
 
     if (!user) {
       throw new UnauthorizedException('User not found');
@@ -189,7 +204,10 @@ export class AuthService {
       expiresIn: JWT_CONFIG.ACCESS_TOKEN_EXPIRES_IN,
     });
 
-    return { accessToken };
+    return { 
+      accessToken,
+      expiresIn: this.parseDurationToSeconds(JWT_CONFIG.ACCESS_TOKEN_EXPIRES_IN),
+    };
   }
 
   private async generateTokens(
@@ -206,6 +224,19 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
+  private parseDurationToSeconds(duration: string): number {
+    const unit = duration.slice(-1);
+    const value = parseInt(duration.slice(0, -1));
+    
+    switch (unit) {
+      case 's': return value;
+      case 'm': return value * 60;
+      case 'h': return value * 60 * 60;
+      case 'd': return value * 24 * 60 * 60;
+      default: return value; // assume seconds if no unit
+    }
+  }
+
   private mapToUserResponse(user: User): UserResponse {
     return plainToInstance(UserResponse, {
       id: user.id,
@@ -217,6 +248,83 @@ export class AuthService {
       role: user.role,
       emailVerified: user.emailVerified,
       createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      deletedAt: user.deletedAt,
     });
+  }
+
+  // User Management Methods (Admin Only)
+  public async getAllUsers(
+    page: number = 1,
+    limit: number = 10,
+    includeDeleted: boolean = false,
+  ): Promise<{ users: UserResponse[]; total: number }> {
+    const [users, total] = await this.userRepository.findAndCount({
+      skip: (page - 1) * limit,
+      take: limit,
+      withDeleted: includeDeleted,
+      order: { createdAt: 'DESC' },
+    });
+
+    return {
+      users: users.map(user => this.mapToUserResponse(user)),
+      total,
+    };
+  }
+
+  public async getUserById(id: string, includeDeleted: boolean = false): Promise<User> {
+    const user = await this.userRepository.findOne({
+      where: { id },
+      withDeleted: includeDeleted,
+    });
+
+    if (!user) {
+      throw new NotFoundException(`User with ID '${id}' not found`);
+    }
+
+    return user;
+  }
+
+  public async softDeleteUser(id: string): Promise<MessageResponse> {
+    const user = await this.getUserById(id);
+    
+    if (user.deletedAt) {
+      throw new BadRequestException('User is already deleted');
+    }
+
+    await this.userRepository.softDelete(id);
+    return { message: 'User deleted successfully' };
+  }
+
+  public async restoreUser(id: string): Promise<MessageResponse> {
+    const user = await this.userRepository.findOne({
+      where: { id },
+      withDeleted: true,
+    });
+
+    if (!user) {
+      throw new NotFoundException(`User with ID '${id}' not found`);
+    }
+
+    if (!user.deletedAt) {
+      throw new BadRequestException('User is not deleted');
+    }
+
+    await this.userRepository.restore(id);
+    return { message: 'User restored successfully' };
+  }
+
+  public async permanentDeleteUser(id: string): Promise<MessageResponse> {
+    const user = await this.userRepository.findOne({
+      where: { id },
+      withDeleted: true,
+    });
+
+    if (!user) {
+      throw new NotFoundException(`User with ID '${id}' not found`);
+    }
+
+    await this.userRepository.delete(id);
+    return { message: 'User permanently deleted' };
   }
 }

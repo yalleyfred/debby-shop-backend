@@ -5,6 +5,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './modules/auth/auth.module';
+import { ProductModule } from './modules/products/product.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { createDatabaseConfig } from './core/database/database.config';
 
@@ -21,6 +22,7 @@ import { createDatabaseConfig } from './core/database/database.config';
       inject: [ConfigService],
     }),
     AuthModule,
+    ProductModule,
   ],
   controllers: [AppController],
   providers: [
