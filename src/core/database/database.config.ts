@@ -1,6 +1,7 @@
 import type { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import type { ConfigService } from '@nestjs/config';
 import { User } from '../../modules/auth/entities/user.entity';
+import { Product } from '../../modules/products/entities/product.entity';
 import {
   APP_CONFIG,
   DATABASE_CONFIG,
@@ -18,7 +19,7 @@ export const createDatabaseConfig = (
   username: configService.get(DATABASE_CONFIG.USERNAME),
   password: configService.get(DATABASE_CONFIG.PASSWORD),
   database: configService.get(DATABASE_CONFIG.NAME),
-  entities: [User],
+  entities: [User, Product],
   synchronize:
     configService.get(APP_CONFIG.NODE_ENV) !== ENVIRONMENTS.PRODUCTION,
   logging: configService.get(APP_CONFIG.NODE_ENV) === ENVIRONMENTS.DEVELOPMENT,

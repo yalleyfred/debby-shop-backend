@@ -16,6 +16,8 @@ export const JWT_CONFIG = {
   REFRESH_TOKEN_EXPIRES_IN: '7d',
   RESET_TOKEN_EXPIRES_IN: 1 * 60 * 60 * 1000, // 1 hour in milliseconds
   EMAIL_TOKEN_LENGTH: 32,
+  // Buffer time for smooth refresh (seconds before expiry to trigger refresh)
+  REFRESH_BUFFER_TIME: 60, // 1 minute before access token expires
 } as const;
 
 export const DATABASE_CONFIG = {
