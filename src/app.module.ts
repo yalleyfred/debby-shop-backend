@@ -6,6 +6,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './modules/auth/auth.module';
 import { ProductModule } from './modules/products/product.module';
+import { UsersModule } from './modules/users/users.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { createDatabaseConfig } from './core/database/database.config';
 
@@ -23,6 +24,7 @@ import { createDatabaseConfig } from './core/database/database.config';
     }),
     AuthModule,
     ProductModule,
+    UsersModule,
   ],
   controllers: [AppController],
   providers: [

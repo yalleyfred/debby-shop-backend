@@ -1,19 +1,11 @@
 import {
-  BadRequestException,
   Body,
   Controller,
-  Delete,
   Get,
   HttpCode,
   HttpStatus,
-  Param,
-  Patch,
   Post,
-  Put,
-  Query,
   UseGuards,
-  UseGuards,
-  Get,
 } from '@nestjs/common';
 
 import { AuthService } from '../services/auth.service';
@@ -131,84 +123,5 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   public logout(): MessageResponse {
     return { message: 'Logged out successfully' };
-  }
-
-  // User Management Endpoints (Admin Only)
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @Get('users')
-  public async getAllUsers(
-    @CurrentUser() user: User,
-    @Query('page') page: number = 1,
-    @Query('limit') limit: number = 10,
-    @Query('includeDeleted') includeDeleted: boolean = false,
-  ): Promise<{ users: UserResponse[]; total: number }> {
-    return this.authService.getAllUsers(page, limit, includeDeleted);
-  }
-
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @Get('users/:id')
-  public async getUserById(
-    @CurrentUser() user: User,
-    @Param('id') id: string,
-    @Query('includeDeleted') includeDeleted: boolean = false,
-  ): Promise<UserResponse> {
-    const targetUser = await this.authService.getUserById(id, includeDeleted);
-    return {
-      id: targetUser.id,
-      email: targetUser.email,
-      firstName: targetUser.firstName,
-      lastName: targetUser.lastName,
-      phone: targetUser.phone,
-      avatar: targetUser.avatar,
-      role: targetUser.role,
-      emailVerified: targetUser.emailVerified,
-      createdAt: targetUser.createdAt,
-      updatedAt: targetUser.updatedAt,
-      deletedAt: targetUser.deletedAt,
-    };
-  }
-
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @Delete('users/:id')
-  @HttpCode(HttpStatus.OK)
-  public async softDeleteUser(
-    @CurrentUser() user: User,
-    @Param('id') id: string,
-  ): Promise<MessageResponse> {
-    // Prevent admin from deleting themselves
-    if (user.id === id) {
-      throw new BadRequestException('You cannot delete your own account');
-    }
-    
-    return this.authService.softDeleteUser(id);
-  }
-
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @Put('users/:id/restore')
-  public async restoreUser(
-    @CurrentUser() user: User,
-    @Param('id') id: string,
-  ): Promise<MessageResponse> {
-    return this.authService.restoreUser(id);
-  }
-
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN)
-  @Delete('users/:id/permanent')
-  @HttpCode(HttpStatus.OK)
-  public async permanentDeleteUser(
-    @CurrentUser() user: User,
-    @Param('id') id: string,
-  ): Promise<MessageResponse> {
-    // Prevent admin from permanently deleting themselves
-    if (user.id === id) {
-      throw new BadRequestException('You cannot permanently delete your own account');
-    }
-    
-    return this.authService.permanentDeleteUser(id);
   }
 }

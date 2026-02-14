@@ -4,6 +4,7 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  DeleteDateColumn,
 } from 'typeorm';
 import { UserRole } from '../interfaces/auth.interfaces';
 
@@ -54,4 +55,7 @@ export class User {
 
   @UpdateDateColumn()
   public updatedAt: Date;
+
+  @DeleteDateColumn()
+  public deletedAt?: Date | null;
 }

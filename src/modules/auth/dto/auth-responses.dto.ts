@@ -4,6 +4,10 @@ import { Transform } from 'class-transformer';
 export class UserResponse {
   @Transform(({ value }) => (value as Date).toISOString())
   public createdAt: Date;
+  @Transform(({ value }) => (value as Date).toISOString())
+  public updatedAt: Date;
+  @Transform(({ value }) => (value as Date | null)?.toISOString?.())
+  public deletedAt?: Date | null;
   public id: string;
   public email: string;
   public firstName: string;
@@ -18,6 +22,12 @@ export class AuthResponse {
   public user: UserResponse;
   public accessToken: string;
   public refreshToken: string;
+  public expiresIn: number;
+}
+
+export class RefreshTokenResponse {
+  public accessToken: string;
+  public expiresIn: number;
 }
 
 export class MessageResponse {

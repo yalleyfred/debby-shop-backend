@@ -3,7 +3,6 @@ import {
   ConflictException,
   UnauthorizedException,
   BadRequestException,
-  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan, IsNull } from 'typeorm';
@@ -80,7 +79,9 @@ export class AuthService {
       user: this.mapToUserResponse(savedUser),
       accessToken,
       refreshToken,
-      expiresIn: this.parseDurationToSeconds(JWT_CONFIG.ACCESS_TOKEN_EXPIRES_IN),
+      expiresIn: this.parseDurationToSeconds(
+        JWT_CONFIG.ACCESS_TOKEN_EXPIRES_IN,
+      ),
     };
   }
 
@@ -114,13 +115,15 @@ export class AuthService {
       user: this.mapToUserResponse(user),
       accessToken,
       refreshToken,
-      expiresIn: this.parseDurationToSeconds(JWT_CONFIG.ACCESS_TOKEN_EXPIRES_IN),
+      expiresIn: this.parseDurationToSeconds(
+        JWT_CONFIG.ACCESS_TOKEN_EXPIRES_IN,
+      ),
     };
   }
 
   public async validateUser(userId: string): Promise<User | null> {
-    return this.userRepository.findOne({ 
-      where: { id: userId, deletedAt: IsNull() } 
+    return this.userRepository.findOne({
+      where: { id: userId, deletedAt: IsNull() },
     });
   }
 
@@ -197,7 +200,7 @@ export class AuthService {
   }
 
   public async refreshToken(userId: string): Promise<RefreshTokenResponse> {
-    const user = await this.userRepository.findOne({ 
+    const user = await this.userRepository.findOne({
       where: { id: userId, deletedAt: IsNull() },
     });
 
@@ -210,9 +213,11 @@ export class AuthService {
       expiresIn: JWT_CONFIG.ACCESS_TOKEN_EXPIRES_IN,
     });
 
-    return { 
+    return {
       accessToken,
-      expiresIn: this.parseDurationToSeconds(JWT_CONFIG.ACCESS_TOKEN_EXPIRES_IN),
+      expiresIn: this.parseDurationToSeconds(
+        JWT_CONFIG.ACCESS_TOKEN_EXPIRES_IN,
+      ),
     };
   }
 
@@ -237,13 +242,18 @@ export class AuthService {
   private parseDurationToSeconds(duration: string): number {
     const unit = duration.slice(-1);
     const value = parseInt(duration.slice(0, -1));
-    
+
     switch (unit) {
-      case 's': return value;
-      case 'm': return value * 60;
-      case 'h': return value * 60 * 60;
-      case 'd': return value * 24 * 60 * 60;
-      default: return value; // assume seconds if no unit
+      case 's':
+        return value;
+      case 'm':
+        return value * 60;
+      case 'h':
+        return value * 60 * 60;
+      case 'd':
+        return value * 24 * 60 * 60;
+      default:
+        return value; // assume seconds if no unit
     }
   }
 
@@ -261,80 +271,5 @@ export class AuthService {
       updatedAt: user.updatedAt,
       deletedAt: user.deletedAt,
     });
-  }
-
-  // User Management Methods (Admin Only)
-  public async getAllUsers(
-    page: number = 1,
-    limit: number = 10,
-    includeDeleted: boolean = false,
-  ): Promise<{ users: UserResponse[]; total: number }> {
-    const [users, total] = await this.userRepository.findAndCount({
-      skip: (page - 1) * limit,
-      take: limit,
-      withDeleted: includeDeleted,
-      order: { createdAt: 'DESC' },
-    });
-
-    return {
-      users: users.map(user => this.mapToUserResponse(user)),
-      total,
-    };
-  }
-
-  public async getUserById(id: string, includeDeleted: boolean = false): Promise<User> {
-    const user = await this.userRepository.findOne({
-      where: { id },
-      withDeleted: includeDeleted,
-    });
-
-    if (!user) {
-      throw new NotFoundException(`User with ID '${id}' not found`);
-    }
-
-    return user;
-  }
-
-  public async softDeleteUser(id: string): Promise<MessageResponse> {
-    const user = await this.getUserById(id);
-    
-    if (user.deletedAt) {
-      throw new BadRequestException('User is already deleted');
-    }
-
-    await this.userRepository.softDelete(id);
-    return { message: 'User deleted successfully' };
-  }
-
-  public async restoreUser(id: string): Promise<MessageResponse> {
-    const user = await this.userRepository.findOne({
-      where: { id },
-      withDeleted: true,
-    });
-
-    if (!user) {
-      throw new NotFoundException(`User with ID '${id}' not found`);
-    }
-
-    if (!user.deletedAt) {
-      throw new BadRequestException('User is not deleted');
-    }
-
-    await this.userRepository.restore(id);
-    return { message: 'User restored successfully' };
-  }
-
-  public async permanentDeleteUser(id: string): Promise<MessageResponse> {
-    const user = await this.userRepository.findOne({
-      where: { id },
-      withDeleted: true,
-    });
-
-    if (!user) {
-      throw new NotFoundException(`User with ID '${id}' not found`);
-    }
-
-    await this.userRepository.delete(id);
-    return { message: 'User permanently deleted' };
   }
 }
