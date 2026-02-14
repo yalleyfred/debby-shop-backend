@@ -57,7 +57,9 @@ export class AuthService {
     );
 
     // Generate email verification token
-    const emailVerificationToken = randomBytes(JWT_CONFIG.EMAIL_TOKEN_LENGTH).toString('hex');
+    const emailVerificationToken = randomBytes(
+      JWT_CONFIG.EMAIL_TOKEN_LENGTH,
+    ).toString('hex');
 
     // Create user
     const user = this.userRepository.create({
@@ -150,8 +152,12 @@ export class AuthService {
       return { message: 'If the email exists, a reset link has been sent' };
     }
 
-    const resetToken = randomBytes(JWT_CONFIG.EMAIL_TOKEN_LENGTH).toString('hex');
-    const resetExpires = new Date(Date.now() + JWT_CONFIG.RESET_TOKEN_EXPIRES_IN);
+    const resetToken = randomBytes(JWT_CONFIG.EMAIL_TOKEN_LENGTH).toString(
+      'hex',
+    );
+    const resetExpires = new Date(
+      Date.now() + JWT_CONFIG.RESET_TOKEN_EXPIRES_IN,
+    );
 
     user.passwordResetToken = resetToken;
     user.passwordResetExpires = resetExpires;
@@ -217,8 +223,12 @@ export class AuthService {
     const payload = { sub: userId, email };
 
     const [accessToken, refreshToken] = await Promise.all([
-      this.jwtService.signAsync(payload, { expiresIn: JWT_CONFIG.ACCESS_TOKEN_EXPIRES_IN }),
-      this.jwtService.signAsync(payload, { expiresIn: JWT_CONFIG.REFRESH_TOKEN_EXPIRES_IN }),
+      this.jwtService.signAsync(payload, {
+        expiresIn: JWT_CONFIG.ACCESS_TOKEN_EXPIRES_IN,
+      }),
+      this.jwtService.signAsync(payload, {
+        expiresIn: JWT_CONFIG.REFRESH_TOKEN_EXPIRES_IN,
+      }),
     ]);
 
     return { accessToken, refreshToken };
