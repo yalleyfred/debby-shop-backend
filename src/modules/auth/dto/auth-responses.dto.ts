@@ -2,24 +2,24 @@ import { UserRole } from '../entities/user.entity';
 import { Transform } from 'class-transformer';
 
 export class UserResponse {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  phone?: string;
-  avatar?: string;
-  role: UserRole;
-  emailVerified: boolean;
   @Transform(({ value }) => (value as Date).toISOString())
-  createdAt: Date;
+  public createdAt: Date;
+  public id: string;
+  public email: string;
+  public firstName: string;
+  public lastName: string;
+  public phone?: string;
+  public avatar?: string;
+  public role: UserRole;
+  public emailVerified: boolean;
 }
 
 export class AuthResponse {
-  user: UserResponse;
-  accessToken: string;
-  refreshToken: string;
+  public user: UserResponse;
+  public accessToken: string;
+  public refreshToken: string;
 }
 
 export class MessageResponse {
-  message: string;
+  public message: string;
 }

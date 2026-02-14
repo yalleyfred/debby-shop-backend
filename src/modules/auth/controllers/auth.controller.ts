@@ -6,7 +6,6 @@ import {
   HttpStatus,
   UseGuards,
   Get,
-  Patch,
 } from '@nestjs/common';
 
 import { AuthService } from '../services/auth.service';
@@ -92,7 +91,7 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Get('profile')
-  public async getProfile(@CurrentUser() user: User): Promise<UserResponse> {
+  public getProfile(@CurrentUser() user: User): UserResponse {
     return {
       id: user.id,
       email: user.email,
@@ -109,7 +108,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @Get('admin-only')
-  public async adminOnly(@CurrentUser() user: User): Promise<MessageResponse> {
+  public adminOnly(@CurrentUser() user: User): MessageResponse {
     return {
       message: `Hello Admin ${user.firstName}! You have special access.`,
     };
@@ -118,7 +117,7 @@ export class AuthController {
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)
-  public async logout(): Promise<MessageResponse> {
+  public logout(): MessageResponse {
     return { message: 'Logged out successfully' };
   }
 }
