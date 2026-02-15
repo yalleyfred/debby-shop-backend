@@ -16,31 +16,45 @@ import {
   PaginationOptions,
   PaginationResult,
 } from '../../../shared/types/common.types';
+import { CloudinaryService } from '../../media/services/cloudinary.service';
 
 @Injectable()
 export class ProductServiceImpl implements ProductService {
-  constructor(private readonly productRepository: ProductRepositoryImpl) {}
+  constructor(
+    private readonly productRepository: ProductRepositoryImpl,
+    private readonly cloudinaryService: CloudinaryService,
+  ) {}
 
-  public async create(productData: Partial<Product>): Promise<Product> {
-    // Validate SKU uniqueness
-    if (productData.sku) {
-      const existingProduct = await this.productRepository.findBySku(
-        productData.sku,
-      );
-      if (existingProduct) {
-        throw new ConflictException(
-          `Product with SKU '${productData.sku}' already exists`,
+  public async create(
+    productData: Partial<Product>,
+    imagePublicIds?: string[],
+  ): Promise<Product> {
+    try {
+      this.ensureCloudinaryImageUrls(productData.images);
+
+      // Validate SKU uniqueness
+      if (productData.sku) {
+        const existingProduct = await this.productRepository.findBySku(
+          productData.sku,
         );
+        if (existingProduct) {
+          throw new ConflictException(
+            `Product with SKU '${productData.sku}' already exists`,
+          );
+        }
       }
-    }
 
-    // Generate slug from name
-    if (productData.name) {
-      productData.slug = this.generateSlug(productData.name);
-    }
+      // Generate slug from name
+      if (productData.name) {
+        productData.slug = this.generateSlug(productData.name);
+      }
 
-    const product = this.productRepository.create(productData);
-    return this.productRepository.save(product);
+      const product = this.productRepository.create(productData);
+      return this.productRepository.save(product);
+    } catch (error) {
+      await this.cleanupUploadedImages(imagePublicIds);
+      throw error;
+    }
   }
 
   public async findById(id: string): Promise<Product> {
@@ -77,32 +91,40 @@ export class ProductServiceImpl implements ProductService {
   public async update(
     id: string,
     updateData: Partial<Product>,
+    imagePublicIds?: string[],
   ): Promise<Product> {
-    const existingProduct = await this.findById(id);
+    try {
+      this.ensureCloudinaryImageUrls(updateData.images);
 
-    // Validate SKU uniqueness if SKU is being updated
-    if (updateData.sku && updateData.sku !== existingProduct.sku) {
-      const duplicateProduct = await this.productRepository.findBySku(
-        updateData.sku,
-      );
-      if (duplicateProduct) {
-        throw new ConflictException(
-          `Product with SKU '${updateData.sku}' already exists`,
+      const existingProduct = await this.findById(id);
+
+      // Validate SKU uniqueness if SKU is being updated
+      if (updateData.sku && updateData.sku !== existingProduct.sku) {
+        const duplicateProduct = await this.productRepository.findBySku(
+          updateData.sku,
         );
+        if (duplicateProduct) {
+          throw new ConflictException(
+            `Product with SKU '${updateData.sku}' already exists`,
+          );
+        }
       }
-    }
 
-    // Generate new slug if name is being updated
-    if (updateData.name) {
-      updateData.slug = this.generateSlug(updateData.name);
-    }
+      // Generate new slug if name is being updated
+      if (updateData.name) {
+        updateData.slug = this.generateSlug(updateData.name);
+      }
 
-    const updatedProduct = await this.productRepository.update(id, updateData);
-    if (!updatedProduct) {
-      throw new NotFoundException(`Product with ID '${id}' not found`);
-    }
+      const updatedProduct = await this.productRepository.update(id, updateData);
+      if (!updatedProduct) {
+        throw new NotFoundException(`Product with ID '${id}' not found`);
+      }
 
-    return updatedProduct;
+      return updatedProduct;
+    } catch (error) {
+      await this.cleanupUploadedImages(imagePublicIds);
+      throw error;
+    }
   }
 
   public async delete(id: string): Promise<void> {
@@ -182,5 +204,34 @@ export class ProductServiceImpl implements ProductService {
 
   public mapToResponse(product: Product): ProductResponse {
     return plainToInstance(ProductResponse, product);
+  }
+
+  private ensureCloudinaryImageUrls(images?: string[]): void {
+    if (!images || images.length === 0) {
+      return;
+    }
+
+    const invalidImage = images.find((image) => !this.isCloudinaryUrl(image));
+    if (invalidImage) {
+      throw new BadRequestException(
+        'Product images must be Cloudinary URLs. Upload files via multipart form-data',
+      );
+    }
+  }
+
+  private isCloudinaryUrl(url: string): boolean {
+    return /^https?:\/\/res\.cloudinary\.com\/.+/i.test(url);
+  }
+
+  private async cleanupUploadedImages(publicIds?: string[]): Promise<void> {
+    if (!publicIds || publicIds.length === 0) {
+      return;
+    }
+
+    try {
+      await this.cloudinaryService.deleteResources(publicIds);
+    } catch {
+      // Best-effort cleanup; preserve original product error
+    }
   }
 }

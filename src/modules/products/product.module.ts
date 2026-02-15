@@ -5,9 +5,10 @@ import { ProductServiceImpl } from './services/product.service';
 import { ProductRepositoryImpl } from './repositories/product.repository';
 import { ProductController } from './controllers/product.controller';
 import { AuthModule } from '../auth/auth.module';
+import { MediaModule } from '../media/media.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Product]), AuthModule],
+  imports: [TypeOrmModule.forFeature([Product]), AuthModule, MediaModule],
   controllers: [ProductController],
   providers: [ProductServiceImpl, ProductRepositoryImpl],
   exports: [ProductServiceImpl, ProductRepositoryImpl],

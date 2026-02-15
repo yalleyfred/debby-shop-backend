@@ -32,7 +32,10 @@ export interface ProductRepository {
 }
 
 export interface ProductService {
-  create(productData: Partial<Product>): Promise<Product>;
+  create(
+    productData: Partial<Product>,
+    imagePublicIds?: string[],
+  ): Promise<Product>;
   findById(id: string): Promise<Product>;
   findBySku(sku: string): Promise<Product>;
   findBySlug(slug: string): Promise<Product>;
@@ -40,7 +43,11 @@ export interface ProductService {
     options: PaginationOptions,
     filters?: ProductFilterOptions,
   ): Promise<PaginationResult<Product>>;
-  update(id: string, updateData: Partial<Product>): Promise<Product>;
+  update(
+    id: string,
+    updateData: Partial<Product>,
+    imagePublicIds?: string[],
+  ): Promise<Product>;
   delete(id: string): Promise<void>;
   permanentDelete(id: string): Promise<void>;
   restore(id: string): Promise<Product>;

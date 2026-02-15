@@ -7,6 +7,8 @@ import { AppService } from './app.service';
 import { AuthModule } from './modules/auth/auth.module';
 import { ProductModule } from './modules/products/product.module';
 import { UsersModule } from './modules/users/users.module';
+import { OrdersModule } from './modules/orders/orders.module';
+import { MediaModule } from './modules/media/media.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { createDatabaseConfig } from './core/database/database.config';
 
@@ -25,6 +27,8 @@ import { createDatabaseConfig } from './core/database/database.config';
     AuthModule,
     ProductModule,
     UsersModule,
+    OrdersModule,
+    MediaModule,
   ],
   controllers: [AppController],
   providers: [

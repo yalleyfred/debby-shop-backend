@@ -80,15 +80,6 @@ export class ProductController {
   }
 
   @Public()
-  @Get(':id')
-  public async getProductById(
-    @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<ProductResponse> {
-    const product = await this.productService.findById(id);
-    return plainToInstance(ProductResponse, product);
-  }
-
-  @Public()
   @Get('by-sku/:sku')
   public async getProductBySku(
     @Param('sku') sku: string,
@@ -106,6 +97,15 @@ export class ProductController {
     return plainToInstance(ProductResponse, product);
   }
 
+  @Public()
+  @Get(':id')
+  public async getProductById(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<ProductResponse> {
+    const product = await this.productService.findById(id);
+    return plainToInstance(ProductResponse, product);
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
   @Post()
@@ -114,7 +114,11 @@ export class ProductController {
     @Body() createProductRequest: CreateProductRequest,
     @CurrentUser() _user: User,
   ): Promise<ProductResponse> {
-    const product = await this.productService.create(createProductRequest);
+    const { imagePublicIds, ...productData } = createProductRequest;
+    const product = await this.productService.create(
+      productData,
+      imagePublicIds,
+    );
     return plainToInstance(ProductResponse, product);
   }
 
@@ -126,7 +130,8 @@ export class ProductController {
     @Body() updateProductRequest: UpdateProductRequest,
     @CurrentUser() _user: User,
   ): Promise<ProductResponse> {
-    const product = await this.productService.update(id, updateProductRequest);
+    const { imagePublicIds, ...productData } = updateProductRequest;
+    const product = await this.productService.update(id, productData, imagePublicIds);
     return plainToInstance(ProductResponse, product);
   }
 

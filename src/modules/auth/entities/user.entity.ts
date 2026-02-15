@@ -5,8 +5,12 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   DeleteDateColumn,
+  OneToMany,
+  OneToOne,
 } from 'typeorm';
 import { UserRole } from '../interfaces/auth.interfaces';
+import { Order } from '../../orders/entities/order.entity';
+import { Wishlist } from '../../wishlists/entities/wishlist.entity';
 
 @Entity('users')
 export class User {
@@ -58,4 +62,10 @@ export class User {
 
   @DeleteDateColumn()
   public deletedAt?: Date | null;
+
+  @OneToMany(() => Order, (order) => order.customer)
+  public orders: Order[];
+
+  @OneToOne(() => Wishlist, (wishlist) => wishlist.user)
+  public wishlist: Wishlist;
 }

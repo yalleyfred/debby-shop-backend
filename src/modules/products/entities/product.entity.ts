@@ -6,7 +6,9 @@ import {
   UpdateDateColumn,
   DeleteDateColumn,
   Index,
+  OneToMany,
 } from 'typeorm';
+import { WishlistItem } from '../../wishlists/entities/wishlist-item.entity';
 
 export enum ProductStatus {
   ACTIVE = 'active',
@@ -81,4 +83,7 @@ export class Product {
 
   @DeleteDateColumn()
   public deletedAt?: Date;
+
+  @OneToMany(() => WishlistItem, (wishlistItem) => wishlistItem.product)
+  public wishlistItems: WishlistItem[];
 }
