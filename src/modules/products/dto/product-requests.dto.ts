@@ -70,6 +70,11 @@ export class CreateProductRequest {
   @IsOptional()
   public images?: string[];
 
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  public imagePublicIds?: string[];
+
   @IsEnum(ProductStatus)
   @IsOptional()
   public status?: ProductStatus = ProductStatus.DRAFT;
@@ -146,6 +151,11 @@ export class UpdateProductRequest {
   @IsString({ each: true })
   @IsOptional()
   public images?: string[];
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  public imagePublicIds?: string[];
 
   @IsEnum(ProductStatus)
   @IsOptional()

@@ -1,12 +1,16 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
   HttpCode,
   HttpStatus,
   Post,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 import { AuthService } from '../services/auth.service';
 import { LocalAuthGuard } from '../guards/local-auth.guard';
@@ -123,5 +127,19 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   public logout(): MessageResponse {
     return { message: 'Logged out successfully' };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('profile/avatar')
+  @UseInterceptors(FileInterceptor('file'))
+  public async uploadAvatar(
+    @CurrentUser() user: User,
+    @UploadedFile() file?: Express.Multer.File,
+  ): Promise<UserResponse> {
+    if (!file) {
+      throw new BadRequestException('No avatar file uploaded');
+    }
+
+    return this.authService.updateAvatar(user.id, file);
   }
 }

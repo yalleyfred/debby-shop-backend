@@ -13,6 +13,7 @@ import { randomBytes } from 'crypto';
 import { User } from '../entities/user.entity';
 import { PasswordHashingService } from './password-hashing.service';
 import { JWT_CONFIG } from '../../../shared/constants/app.constants';
+import { CloudinaryService } from '../../media/services/cloudinary.service';
 import {
   RegisterRequest,
   LoginRequest,
@@ -33,6 +34,7 @@ export class AuthService {
     private readonly userRepository: Repository<User>,
     private readonly passwordHashingService: PasswordHashingService,
     private readonly jwtService: JwtService,
+    private readonly cloudinaryService: CloudinaryService,
   ) {}
 
   public async register(registerData: RegisterRequest): Promise<AuthResponse> {
@@ -219,6 +221,28 @@ export class AuthService {
         JWT_CONFIG.ACCESS_TOKEN_EXPIRES_IN,
       ),
     };
+  }
+
+  public async updateAvatar(
+    userId: string,
+    file: Express.Multer.File,
+  ): Promise<UserResponse> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId, deletedAt: IsNull() },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    const uploaded = await this.cloudinaryService.uploadFile(
+      file,
+      `users/${user.id}/avatar`,
+    );
+
+    user.avatar = uploaded.secureUrl;
+    const savedUser = await this.userRepository.save(user);
+    return this.mapToUserResponse(savedUser);
   }
 
   private async generateTokens(
