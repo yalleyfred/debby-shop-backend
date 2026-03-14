@@ -16,6 +16,7 @@ import { OrderPayment } from './order-payment.entity';
 
 export enum OrderStatus {
   PENDING = 'pending',
+  CONFIRMED = 'confirmed',
   PROCESSING = 'processing',
   SHIPPED = 'shipped',
   DELIVERED = 'delivered',
@@ -82,6 +83,10 @@ export class Order {
 
   @Column({ default: false })
   public newsletter: boolean;
+
+  /** UTM / referral source captured at checkout (e.g. 'organic', 'social', 'email', 'direct') */
+  @Column({ nullable: true })
+  public trafficSource?: string;
 
   @CreateDateColumn()
   public createdAt: Date;

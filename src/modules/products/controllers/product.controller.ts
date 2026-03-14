@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Put,
+  Patch,
   Delete,
   Body,
   Param,
@@ -97,6 +98,29 @@ export class ProductController {
     return plainToInstance(ProductResponse, product);
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @Get('deleted')
+  public async getDeletedProducts(
+    @Query() pagination: PaginationDto,
+  ): Promise<ProductListResponse> {
+    const paginationOptions = {
+      page: pagination.page ?? 1,
+      limit: pagination.limit ?? 10,
+      sortBy: pagination.sortBy,
+      sortOrder: pagination.sortOrder ?? 'DESC',
+    };
+
+    const result = await this.productService.findDeleted(paginationOptions);
+
+    return {
+      products: result.data.map((product) =>
+        plainToInstance(ProductResponse, product),
+      ),
+      meta: result.meta,
+    };
+  }
+
   @Public()
   @Get(':id')
   public async getProductById(
@@ -124,14 +148,18 @@ export class ProductController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  @Put(':id')
+  @Patch(':id')
   public async updateProduct(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateProductRequest: UpdateProductRequest,
     @CurrentUser() _user: User,
   ): Promise<ProductResponse> {
     const { imagePublicIds, ...productData } = updateProductRequest;
-    const product = await this.productService.update(id, productData, imagePublicIds);
+    const product = await this.productService.update(
+      id,
+      productData,
+      imagePublicIds,
+    );
     return plainToInstance(ProductResponse, product);
   }
 

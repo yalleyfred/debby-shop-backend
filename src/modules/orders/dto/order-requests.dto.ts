@@ -110,4 +110,8 @@ export class CreateOrderRequest {
   @IsOptional()
   @IsBoolean()
   public newsletter?: boolean = false;
+
+  @IsOptional()
+  @IsString()
+  public trafficSource?: string;
 }

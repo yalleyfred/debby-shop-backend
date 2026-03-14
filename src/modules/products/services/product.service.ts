@@ -115,7 +115,10 @@ export class ProductServiceImpl implements ProductService {
         updateData.slug = this.generateSlug(updateData.name);
       }
 
-      const updatedProduct = await this.productRepository.update(id, updateData);
+      const updatedProduct = await this.productRepository.update(
+        id,
+        updateData,
+      );
       if (!updatedProduct) {
         throw new NotFoundException(`Product with ID '${id}' not found`);
       }
@@ -125,6 +128,12 @@ export class ProductServiceImpl implements ProductService {
       await this.cleanupUploadedImages(imagePublicIds);
       throw error;
     }
+  }
+
+  public async findDeleted(
+    options: PaginationOptions,
+  ): Promise<PaginationResult<Product>> {
+    return this.productRepository.findDeleted(options);
   }
 
   public async delete(id: string): Promise<void> {
@@ -207,14 +216,16 @@ export class ProductServiceImpl implements ProductService {
   }
 
   private ensureCloudinaryImageUrls(images?: string[]): void {
-    if (!images || images.length === 0) {
+    // TypeORM simple-array stores [] as "" and reads it back as [""] — filter those out
+    const nonEmpty = images?.filter((img) => img.trim() !== '');
+    if (!nonEmpty || nonEmpty.length === 0) {
       return;
     }
 
-    const invalidImage = images.find((image) => !this.isCloudinaryUrl(image));
+    const invalidImage = nonEmpty.find((image) => !this.isCloudinaryUrl(image.trim()));
     if (invalidImage) {
       throw new BadRequestException(
-        'Product images must be Cloudinary URLs. Upload files via multipart form-data',
+        `Invalid image URL: "${invalidImage.trim()}". Images must be uploaded via POST /media/upload first`,
       );
     }
   }
