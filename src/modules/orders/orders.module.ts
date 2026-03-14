@@ -8,6 +8,7 @@ import { Product } from '../products/entities/product.entity';
 import { User } from '../auth/entities/user.entity';
 import { OrdersService } from './services/orders.service';
 import { OrdersController } from './controllers/orders.controller';
+import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { OrdersController } from './controllers/orders.controller';
       Product,
       User,
     ]),
+    EmailModule,
   ],
   controllers: [OrdersController],
   providers: [OrdersService],

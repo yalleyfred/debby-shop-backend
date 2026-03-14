@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, SelectQueryBuilder, IsNull } from 'typeorm';
+import { Repository, SelectQueryBuilder, IsNull, Not } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Product, ProductStatus } from '../entities/product.entity';
 import {
@@ -89,8 +89,42 @@ export class ProductRepositoryImpl implements ProductRepository {
     id: string,
     updateData: Partial<Product>,
   ): Promise<Product | null> {
-    await this.productRepository.update(id, updateData);
-    return this.findById(id);
+    const existing = await this.findById(id);
+    if (!existing) return null;
+    // Omit undefined values so unset fields don't overwrite existing data
+    const definedFields = Object.fromEntries(
+      Object.entries(updateData).filter(([, v]) => v !== undefined),
+    ) as Partial<Product>;
+    Object.assign(existing, definedFields);
+    return this.productRepository.save(existing);
+  }
+
+  public async findDeleted(
+    options: PaginationOptions,
+  ): Promise<PaginationResult<Product>> {
+    const skip = (options.page - 1) * options.limit;
+
+    const [products, total] = await this.productRepository.findAndCount({
+      where: { deletedAt: Not(IsNull()) },
+      withDeleted: true,
+      order: { deletedAt: 'DESC' },
+      skip,
+      take: options.limit,
+    });
+
+    const totalPages = Math.ceil(total / options.limit);
+
+    return {
+      data: products,
+      meta: {
+        total,
+        page: options.page,
+        limit: options.limit,
+        totalPages,
+        hasNext: options.page < totalPages,
+        hasPrevious: options.page > 1,
+      },
+    };
   }
 
   public async delete(id: string): Promise<boolean> {

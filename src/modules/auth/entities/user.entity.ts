@@ -54,6 +54,12 @@ export class User {
   @Column({ nullable: true })
   public passwordResetExpires?: Date;
 
+  @Column({ nullable: true })
+  public twoFactorSecret?: string;
+
+  @Column({ default: false })
+  public twoFactorEnabled: boolean;
+
   @CreateDateColumn()
   public createdAt: Date;
 

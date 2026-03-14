@@ -5,24 +5,22 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, IsNull, Repository } from 'typeorm';
+import {
+  DataSource,
+  DeepPartial,
+  FindOptionsWhere,
+  IsNull,
+  Repository,
+} from 'typeorm';
 import { User } from '../../auth/entities/user.entity';
 import { Product, ProductStatus } from '../../products/entities/product.entity';
-import {
-  Order,
-  OrderStatus,
-  ShippingMethod,
-} from '../entities/order.entity';
-import { OrderItem } from '../entities/order-item.entity';
+import { Order, OrderStatus } from '../entities/order.entity';
+// OrderItem is created via TypeORM cascade; no direct class reference needed
 import {
   OrderAddress,
   OrderAddressType,
 } from '../entities/order-address.entity';
-import {
-  OrderPayment,
-  PaymentStatus,
-  PaymentType,
-} from '../entities/order-payment.entity';
+import { PaymentStatus, PaymentType } from '../entities/order-payment.entity';
 import { UserRole } from '../../auth/interfaces/auth.interfaces';
 import {
   CreateOrderRequest,
@@ -32,8 +30,10 @@ import {
   OrderAddressResponse,
   OrderListResponse,
   OrderResponse,
+  OrderTrackingResponse,
 } from '../dto/order-responses.dto';
 import { PaginationOptions } from '../../../shared/types/common.types';
+import { EmailService } from '../../email/email.service';
 
 type ValidatedOrderItem = {
   requestItem: OrderItemRequest;
@@ -52,6 +52,7 @@ export class OrdersService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly dataSource: DataSource,
+    private readonly emailService: EmailService,
   ) {}
 
   public async createOrder(
@@ -62,79 +63,22 @@ export class OrdersService {
     await this.ensureCustomerExists(request.customerId);
 
     const validatedItems = await this.validateAndPriceItems(request.items);
-    const subtotal = validatedItems.reduce(
-      (sum, item) => sum + item.totalPrice,
-      0,
+    const subtotal = validatedItems.reduce((sum, v) => sum + v.totalPrice, 0);
+    const createdOrder = await this.runOrderTransaction(
+      request,
+      validatedItems,
+      subtotal,
     );
 
-    const createdOrder = await this.dataSource.transaction(
-      async (transactionalEntityManager) => {
-        const transactionalOrderRepository =
-          transactionalEntityManager.getRepository(Order);
-        const transactionalProductRepository =
-          transactionalEntityManager.getRepository(Product);
-
-        const order = transactionalOrderRepository.create({
-          customerId: request.customerId,
-          shippingMethod: request.shippingMethod,
-          status: OrderStatus.PENDING,
-          subtotal,
-          total: subtotal,
-          saveInfo: request.saveInfo ?? false,
-          newsletter: request.newsletter ?? false,
-          items: validatedItems.map((item) => ({
-            productId: item.product.id,
-            quantity: item.requestItem.quantity,
-            selectedSize: item.requestItem.selectedSize,
-            selectedColor: item.requestItem.selectedColor,
-            unitPrice: item.unitPrice,
-            totalPrice: item.totalPrice,
-          })),
-          addresses: [
-            {
-              type: OrderAddressType.SHIPPING,
-              ...request.shippingAddress,
-            },
-            {
-              type: OrderAddressType.BILLING,
-              ...request.billingAddress,
-            },
-          ],
-          paymentMethod: {
-            type: request.paymentMethod.type,
-            token: request.paymentMethod.token,
-            status: PaymentStatus.PENDING,
-          },
-        });
-
-        const savedOrder = await transactionalOrderRepository.save(order);
-
-        for (const item of validatedItems) {
-          await transactionalProductRepository.update(item.product.id, {
-            stock: item.product.stock - item.requestItem.quantity,
-          });
-        }
-
-        const hydratedOrder = await transactionalOrderRepository.findOne({
-          where: { id: savedOrder.id },
-          relations: {
-            items: {
-              product: true,
-            },
-            addresses: true,
-            paymentMethod: true,
-          },
-        });
-
-        if (!hydratedOrder) {
-          throw new NotFoundException('Order creation failed');
-        }
-
-        return hydratedOrder;
-      },
+    const response = this.mapOrderToResponse(createdOrder);
+    void this.emailService.sendOrderConfirmation(
+      currentUser.email,
+      currentUser.firstName,
+      response.id,
+      response.total,
     );
 
-    return this.mapOrderToResponse(createdOrder);
+    return response;
   }
 
   public async getMyOrders(
@@ -168,6 +112,42 @@ export class OrdersService {
     return this.mapOrderToResponse(order);
   }
 
+  public async trackOrder(orderId: string): Promise<OrderTrackingResponse> {
+    const order = await this.orderRepository.findOne({
+      where: { id: orderId },
+      relations: { items: { product: true }, addresses: true },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Order with ID '${orderId}' not found`);
+    }
+
+    const shippingAddress = order.addresses.find(
+      (a) => a.type === OrderAddressType.SHIPPING,
+    );
+
+    if (!shippingAddress) {
+      throw new BadRequestException(
+        `Order '${orderId}' is missing a shipping address`,
+      );
+    }
+
+    return {
+      id: order.id,
+      status: order.status,
+      shippingMethod: order.shippingMethod,
+      items: order.items.map((item) => ({
+        productName: item.product?.name ?? '',
+        quantity: item.quantity,
+        selectedSize: item.selectedSize,
+        selectedColor: item.selectedColor,
+      })),
+      shippingAddress: this.mapAddress(shippingAddress),
+      createdAt: order.createdAt,
+      updatedAt: order.updatedAt,
+    };
+  }
+
   public async getAllOrders(
     _currentUser: User,
     options: PaginationOptions,
@@ -175,7 +155,41 @@ export class OrdersService {
     return this.getPaginatedOrders({}, options);
   }
 
-  private ensureAuthorizedCustomer(customerId: string, currentUser: User): void {
+  public async updateOrderStatus(
+    orderId: string,
+    status: OrderStatus,
+  ): Promise<OrderResponse> {
+    const order = await this.orderRepository.findOne({
+      where: { id: orderId },
+      relations: {
+        items: { product: true },
+        addresses: true,
+        paymentMethod: true,
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Order with ID '${orderId}' not found`);
+    }
+
+    await this.orderRepository.update(orderId, { status });
+
+    const updated = await this.orderRepository.findOne({
+      where: { id: orderId },
+      relations: {
+        items: { product: true },
+        addresses: true,
+        paymentMethod: true,
+      },
+    });
+
+    return this.mapOrderToResponse(updated!);
+  }
+
+  private ensureAuthorizedCustomer(
+    customerId: string,
+    currentUser: User,
+  ): void {
     if (currentUser.role === UserRole.ADMIN) {
       return;
     }
@@ -197,68 +211,138 @@ export class OrdersService {
     }
   }
 
-  private async validateAndPriceItems(
-    items: OrderItemRequest[],
-  ): Promise<ValidatedOrderItem[]> {
-    const validatedItems: ValidatedOrderItem[] = [];
+  private async runOrderTransaction(
+    request: CreateOrderRequest,
+    validatedItems: ValidatedOrderItem[],
+    subtotal: number,
+  ): Promise<Order> {
+    const orderData = this.buildOrderData(request, validatedItems, subtotal);
 
-    for (const item of items) {
-      const product = await this.productRepository.findOne({
-        where: {
-          id: item.productId,
-          status: ProductStatus.ACTIVE,
-          deletedAt: IsNull(),
+    return this.dataSource.transaction(async (em) => {
+      const orderRepo = em.getRepository(Order);
+      const productRepo = em.getRepository(Product);
+
+      const saved = await orderRepo.save(orderRepo.create(orderData));
+
+      await Promise.all(
+        validatedItems.map((v) =>
+          productRepo.update(v.product.id, {
+            stock: v.product.stock - v.requestItem.quantity,
+          }),
+        ),
+      );
+
+      const hydrated = await orderRepo.findOne({
+        where: { id: saved.id },
+        relations: {
+          items: { product: true },
+          addresses: true,
+          paymentMethod: true,
         },
       });
 
-      if (!product) {
-        throw new NotFoundException(
-          `Product with ID '${item.productId}' not found or unavailable`,
-        );
-      }
+      if (!hydrated) throw new NotFoundException('Order creation failed');
+      return hydrated;
+    });
+  }
 
-      if (product.stock < item.quantity) {
-        throw new BadRequestException(
-          `Insufficient stock for product '${product.name}'. Available: ${product.stock}`,
-        );
-      }
+  private buildOrderData(
+    request: CreateOrderRequest,
+    validatedItems: ValidatedOrderItem[],
+    subtotal: number,
+  ): DeepPartial<Order> {
+    return {
+      customerId: request.customerId,
+      shippingMethod: request.shippingMethod,
+      status: OrderStatus.PENDING,
+      subtotal,
+      total: subtotal,
+      saveInfo: request.saveInfo ?? false,
+      newsletter: request.newsletter ?? false,
+      trafficSource: request.trafficSource,
+      items: validatedItems.map((v) => ({
+        productId: v.product.id,
+        quantity: v.requestItem.quantity,
+        selectedSize: v.requestItem.selectedSize,
+        selectedColor: v.requestItem.selectedColor,
+        unitPrice: v.unitPrice,
+        totalPrice: v.totalPrice,
+      })),
+      addresses: [
+        { type: OrderAddressType.SHIPPING, ...request.shippingAddress },
+        { type: OrderAddressType.BILLING, ...request.billingAddress },
+      ],
+      paymentMethod: {
+        type: request.paymentMethod.type,
+        token: request.paymentMethod.token,
+        status: PaymentStatus.PENDING,
+      },
+    };
+  }
 
-      if (item.selectedSize) {
-        const availableSizes = product.sizes ?? [];
-        if (
-          availableSizes.length === 0 ||
-          !availableSizes.includes(item.selectedSize)
-        ) {
-          throw new BadRequestException(
-            `Selected size '${item.selectedSize}' is not available for product '${product.name}'`,
-          );
-        }
-      }
+  private async validateAndPriceItems(
+    items: OrderItemRequest[],
+  ): Promise<ValidatedOrderItem[]> {
+    const products = await Promise.all(
+      items.map((item) =>
+        this.productRepository.findOne({
+          where: {
+            id: item.productId,
+            status: ProductStatus.ACTIVE,
+            deletedAt: IsNull(),
+          },
+        }),
+      ),
+    );
+    return items.map((item, i) =>
+      this.validateAndPriceSingleItem(item, products[i]),
+    );
+  }
 
-      if (item.selectedColor) {
-        const availableColors = product.colors ?? [];
-        if (
-          availableColors.length === 0 ||
-          !availableColors.includes(item.selectedColor)
-        ) {
-          throw new BadRequestException(
-            `Selected color '${item.selectedColor}' is not available for product '${product.name}'`,
-          );
-        }
-      }
-
-      const unitPrice = Number(product.price);
-      const totalPrice = unitPrice * item.quantity;
-
-      validatedItems.push({
-        requestItem: item,
-        product,
-        unitPrice,
-        totalPrice,
-      });
+  private validateAndPriceSingleItem(
+    item: OrderItemRequest,
+    product: Product | null,
+  ): ValidatedOrderItem {
+    if (!product) {
+      throw new NotFoundException(
+        `Product with ID '${item.productId}' not found or unavailable`,
+      );
     }
+    if (product.stock < item.quantity) {
+      throw new BadRequestException(
+        `Insufficient stock for '${product.name}'. Available: ${product.stock}`,
+      );
+    }
+    this.validateProductVariants(item, product);
+    const unitPrice = Number(product.price);
+    return {
+      requestItem: item,
+      product,
+      unitPrice,
+      totalPrice: unitPrice * item.quantity,
+    };
+  }
 
-    return validatedItems;
+  private validateProductVariants(
+    item: OrderItemRequest,
+    product: Product,
+  ): void {
+    if (item.selectedSize) {
+      const sizes = product.sizes ?? [];
+      if (!sizes.length || !sizes.includes(item.selectedSize)) {
+        throw new BadRequestException(
+          `Size '${item.selectedSize}' not available for '${product.name}'`,
+        );
+      }
+    }
+    if (item.selectedColor) {
+      const colors = product.colors ?? [];
+      if (!colors.length || !colors.includes(item.selectedColor)) {
+        throw new BadRequestException(
+          `Color '${item.selectedColor}' not available for '${product.name}'`,
+        );
+      }
+    }
   }
 
   private mapOrderToResponse(order: Order): OrderResponse {
@@ -283,7 +367,7 @@ export class OrdersService {
       id: order.id,
       customerId: order.customerId,
       status: order.status,
-      shippingMethod: order.shippingMethod as ShippingMethod,
+      shippingMethod: order.shippingMethod,
       subtotal: Number(order.subtotal),
       total: Number(order.total),
       saveInfo: order.saveInfo,
@@ -323,7 +407,7 @@ export class OrdersService {
   }
 
   private async getPaginatedOrders(
-    where: Partial<Order>,
+    where: FindOptionsWhere<Order>,
     options: PaginationOptions,
   ): Promise<OrderListResponse> {
     const page = options.page ?? 1;

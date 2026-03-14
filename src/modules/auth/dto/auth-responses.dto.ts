@@ -33,3 +33,9 @@ export class RefreshTokenResponse {
 export class MessageResponse {
   public message: string;
 }
+
+export interface TwoFactorRequiredResponse {
+  requires2FA: true;
+  tempToken: string;
+  expiresIn: number;
+}

@@ -4,6 +4,10 @@ import { v2 as cloudinary } from 'cloudinary';
 import { APP_CONFIG } from '../../../shared/constants/app.constants';
 import { UploadedMedia } from '../interfaces/media.interfaces';
 
+type CloudinaryDeleteResult = {
+  deleted: Record<string, string>;
+};
+
 @Injectable()
 export class CloudinaryService {
   private readonly rootFolder: string;
@@ -12,7 +16,9 @@ export class CloudinaryService {
     const cloudName = this.configService.get<string>(
       APP_CONFIG.CLOUDINARY_CLOUD_NAME,
     );
-    const apiKey = this.configService.get<string>(APP_CONFIG.CLOUDINARY_API_KEY);
+    const apiKey = this.configService.get<string>(
+      APP_CONFIG.CLOUDINARY_API_KEY,
+    );
     const apiSecret = this.configService.get<string>(
       APP_CONFIG.CLOUDINARY_API_SECRET,
     );
@@ -60,7 +66,8 @@ export class CloudinaryService {
         bytes: result.bytes,
         width: result.width,
         height: result.height,
-        duration: result.duration,
+        // duration is typed as `any` in the Cloudinary SDK — cast to known shape
+        duration: result.duration as number | undefined,
       };
     } catch {
       throw new InternalServerErrorException('Failed to upload file');
@@ -83,21 +90,26 @@ export class CloudinaryService {
     }
 
     try {
-      const result = await cloudinary.api.delete_resources(publicIds, {
+      // delete_resources returns Promise<any> in the SDK — cast to known shape
+      const result = (await cloudinary.api.delete_resources(publicIds, {
         resource_type: 'image',
-      });
+      })) as CloudinaryDeleteResult;
 
-      const deleted = Object.entries(result.deleted ?? {})
+      const entries = Object.entries(result.deleted ?? {});
+
+      const deleted = entries
         .filter(([, status]) => status === 'deleted')
         .map(([publicId]) => publicId);
 
-      const notFound = Object.entries(result.deleted ?? {})
+      const notFound = entries
         .filter(([, status]) => status !== 'deleted')
         .map(([publicId]) => publicId);
 
       return { deleted, notFound };
     } catch {
-      throw new InternalServerErrorException('Failed to delete media resources');
+      throw new InternalServerErrorException(
+        'Failed to delete media resources',
+      );
     }
   }
 }

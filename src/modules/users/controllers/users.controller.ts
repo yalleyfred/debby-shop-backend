@@ -1,11 +1,14 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Delete,
   Get,
   HttpCode,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
+  Post,
   Put,
   Query,
   UseGuards,
@@ -21,6 +24,14 @@ import {
 } from '../../auth/dto/auth-responses.dto';
 import { User } from '../../auth/entities/user.entity';
 import { UsersService } from '../services/users.service';
+import { UserAddress } from '../entities/user-address.entity';
+import { UserPaymentMethod } from '../entities/user-payment-method.entity';
+import {
+  CreateUserAddressDto,
+  CreateUserPaymentMethodDto,
+  SendEmailToUserDto,
+  UpdateUserAddressDto,
+} from '../dto/user-extended.dto';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -94,5 +105,85 @@ export class UsersController {
     }
 
     return this.usersService.permanentDeleteUser(id);
+  }
+
+  @Post(':id/email')
+  @HttpCode(HttpStatus.OK)
+  public async sendEmail(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SendEmailToUserDto,
+  ): Promise<MessageResponse> {
+    return this.usersService.sendEmailToUser(id, dto.subject, dto.message);
+  }
+
+  @Post(':id/reset-password')
+  @HttpCode(HttpStatus.OK)
+  public async resetPassword(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ resetToken: string; message: string }> {
+    return this.usersService.adminResetPassword(id);
+  }
+
+  // ─── Addresses ─────────────────────────────────────────────────────────────
+
+  @Get(':id/addresses')
+  public async getAddresses(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<UserAddress[]> {
+    return this.usersService.getAddresses(id);
+  }
+
+  @Post(':id/addresses')
+  @HttpCode(HttpStatus.CREATED)
+  public async createAddress(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CreateUserAddressDto,
+  ): Promise<UserAddress> {
+    return this.usersService.createAddress(id, dto);
+  }
+
+  @Put(':id/addresses/:addressId')
+  public async updateAddress(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('addressId', ParseUUIDPipe) addressId: string,
+    @Body() dto: UpdateUserAddressDto,
+  ): Promise<UserAddress> {
+    return this.usersService.updateAddress(id, addressId, dto);
+  }
+
+  @Delete(':id/addresses/:addressId')
+  @HttpCode(HttpStatus.OK)
+  public async deleteAddress(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('addressId', ParseUUIDPipe) addressId: string,
+  ): Promise<MessageResponse> {
+    return this.usersService.deleteAddress(id, addressId);
+  }
+
+  // ─── Payment Methods ────────────────────────────────────────────────────────
+
+  @Get(':id/payment-methods')
+  public async getPaymentMethods(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<UserPaymentMethod[]> {
+    return this.usersService.getPaymentMethods(id);
+  }
+
+  @Post(':id/payment-methods')
+  @HttpCode(HttpStatus.CREATED)
+  public async createPaymentMethod(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CreateUserPaymentMethodDto,
+  ): Promise<UserPaymentMethod> {
+    return this.usersService.createPaymentMethod(id, dto);
+  }
+
+  @Delete(':id/payment-methods/:paymentMethodId')
+  @HttpCode(HttpStatus.OK)
+  public async deletePaymentMethod(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('paymentMethodId', ParseUUIDPipe) paymentMethodId: string,
+  ): Promise<MessageResponse> {
+    return this.usersService.deletePaymentMethod(id, paymentMethodId);
   }
 }

@@ -27,6 +27,7 @@ export interface ProductRepository {
   delete(id: string): Promise<boolean>;
   permanentDelete(id: string): Promise<boolean>;
   restore(id: string): Promise<Product | null>;
+  findDeleted(options: PaginationOptions): Promise<PaginationResult<Product>>;
   updateStock(id: string, quantity: number): Promise<Product | null>;
   bulkUpdateStatus(ids: string[], status: ProductStatus): Promise<void>;
 }
@@ -51,6 +52,7 @@ export interface ProductService {
   delete(id: string): Promise<void>;
   permanentDelete(id: string): Promise<void>;
   restore(id: string): Promise<Product>;
+  findDeleted(options: PaginationOptions): Promise<PaginationResult<Product>>;
   updateStock(id: string, quantity: number): Promise<Product>;
   bulkUpdateStatus(ids: string[], status: ProductStatus): Promise<void>;
   generateSlug(name: string): string;

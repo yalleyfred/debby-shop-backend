@@ -2,20 +2,29 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { Roles } from '../../auth/decorators/roles.decorator';
+import { Public } from '../../auth/decorators/public.decorator';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { User } from '../../auth/entities/user.entity';
 import { UserRole } from '../../auth/interfaces/auth.interfaces';
 import { CreateOrderRequest } from '../dto/order-requests.dto';
-import { OrderListResponse, OrderResponse } from '../dto/order-responses.dto';
+import {
+  OrderListResponse,
+  OrderResponse,
+  OrderTrackingResponse,
+} from '../dto/order-responses.dto';
+import { UpdateOrderStatusDto } from '../dto/update-order-status.dto';
 import { OrdersService } from '../services/orders.service';
 import { PaginationDto } from '../../../shared/dto/pagination.dto';
 
@@ -47,6 +56,14 @@ export class OrdersController {
     return this.ordersService.getMyOrders(currentUser, paginationOptions);
   }
 
+  @Public()
+  @Get('track/:id')
+  public async trackOrder(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<OrderTrackingResponse> {
+    return this.ordersService.trackOrder(id);
+  }
+
   @Get(':id')
   public async getOrderById(
     @Param('id', ParseUUIDPipe) id: string,
@@ -70,5 +87,16 @@ export class OrdersController {
     };
 
     return this.ordersService.getAllOrders(currentUser, paginationOptions);
+  }
+
+  @Patch(':id/status')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  public async updateOrderStatus(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateOrderStatusDto,
+  ): Promise<OrderResponse> {
+    return this.ordersService.updateOrderStatus(id, dto.status);
   }
 }

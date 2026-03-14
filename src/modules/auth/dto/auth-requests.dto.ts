@@ -2,6 +2,8 @@ import {
   IsEmail,
   IsString,
   MinLength,
+  MaxLength,
+  Matches,
   IsOptional,
   IsEnum,
 } from 'class-validator';
@@ -12,7 +14,12 @@ export class RegisterRequest {
   public email: string;
 
   @IsString()
-  // @MinLength(8)
+  @MinLength(8)
+  @MaxLength(128)
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/, {
+    message:
+      'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character (@$!%*?&)',
+  })
   public password: string;
 
   @IsString()
@@ -48,10 +55,42 @@ export class ResetPasswordRequest {
 
   @IsString()
   @MinLength(8)
+  @MaxLength(128)
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])/, {
+    message:
+      'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character (@$!%*?&)',
+  })
   public newPassword: string;
 }
 
 export class VerifyEmailRequest {
   @IsString()
   public token: string;
+}
+
+export class UpdateProfileRequest {
+  @IsOptional()
+  @IsString()
+  public firstName?: string;
+
+  @IsOptional()
+  @IsString()
+  public lastName?: string;
+
+  @IsOptional()
+  @IsString()
+  public phone?: string;
+}
+
+export class Verify2FARequest {
+  @IsString()
+  public tempToken: string;
+
+  @IsString()
+  public code: string;
+}
+
+export class Disable2FARequest {
+  @IsString()
+  public code: string;
 }

@@ -121,3 +121,42 @@ export class OrderListResponse {
     hasPrevious: boolean;
   };
 }
+
+export class OrderTrackingItemResponse {
+  @Expose()
+  public productName: string;
+
+  @Expose()
+  public quantity: number;
+
+  @Expose()
+  public selectedSize?: string;
+
+  @Expose()
+  public selectedColor?: string;
+}
+
+export class OrderTrackingResponse {
+  @Expose()
+  public id: string;
+
+  @Expose()
+  public status: OrderStatus;
+
+  @Expose()
+  public shippingMethod: ShippingMethod;
+
+  @Expose()
+  @Type(() => OrderTrackingItemResponse)
+  public items: OrderTrackingItemResponse[];
+
+  @Expose()
+  @Type(() => OrderAddressResponse)
+  public shippingAddress: OrderAddressResponse;
+
+  @Expose()
+  public createdAt: Date;
+
+  @Expose()
+  public updatedAt: Date;
+}
